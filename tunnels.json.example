@@ -1,0 +1,17 @@
+{
+  "proxy_binary": "/usr/local/bin/cloud-sql-proxy",
+  "tunnels": [
+    {
+      "name": "dev",
+      "label": "Dev",
+      "instance": "my-project:us-central1:my-db-dev",
+      "port": 3307
+    },
+    {
+      "name": "prod",
+      "label": "Production",
+      "instance": "my-project:us-central1:my-db-prod",
+      "port": 3308
+    }
+  ]
+}
