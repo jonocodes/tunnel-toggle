@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Configuration for SQL Proxy Menubar
-# Loads tunnel definitions from tunnels.json
+# Configuration for Tunnel Toggle
+# Loads SQL and SSH tunnel definitions from tunnels.json
 
 # Resolve script directory (works when sourced from any location)
 if [[ -n "${SCRIPT_DIR:-}" ]]; then
@@ -12,7 +12,7 @@ else
 fi
 
 CONFIG_FILE="${CONFIG_DIR}/tunnels.json"
-STATE_DIR="${HOME}/.sql-proxy-menubar"
+STATE_DIR="${HOME}/.tunnel-toggle"
 
 # --- Validate dependencies ---
 
@@ -35,6 +35,8 @@ if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
     exit 1
 fi
 
+# --- SQL Proxy tunnels ---
+
 # Read proxy binary (default: auto-detect from PATH)
 PROXY_BINARY=$(jq -r '.proxy_binary // empty' "$CONFIG_FILE")
 if [[ -z "$PROXY_BINARY" ]]; then
@@ -43,10 +45,6 @@ fi
 
 # Read tunnel count
 tunnel_count=$(jq '.tunnels | length' "$CONFIG_FILE")
-if [[ "$tunnel_count" -eq 0 ]]; then
-    echo "ERROR: No tunnels defined in ${CONFIG_FILE}" >&2
-    exit 1
-fi
 
 # Populate tunnel arrays from JSON
 TUNNEL_NAMES=()
@@ -101,7 +99,64 @@ for i in $(seq 0 $((tunnel_count - 1))); do
     TUNNEL_PORTS+=("$port")
 done
 
+# --- SSH Tunnels ---
+
+ssh_tunnel_count=$(jq '.ssh_tunnels // [] | length' "$CONFIG_FILE")
+
+SSH_NAMES=()
+SSH_LABELS=()
+SSH_FORWARDS=()
+SSH_HOSTS=()
+SSH_OPTS=()
+
+for i in $(seq 0 $((ssh_tunnel_count - 1))); do
+    name=$(jq -r ".ssh_tunnels[$i].name // empty" "$CONFIG_FILE")
+    label=$(jq -r ".ssh_tunnels[$i].label // empty" "$CONFIG_FILE")
+    forward=$(jq -r ".ssh_tunnels[$i].forward // empty" "$CONFIG_FILE")
+    host=$(jq -r ".ssh_tunnels[$i].host // empty" "$CONFIG_FILE")
+    opts=$(jq -r ".ssh_tunnels[$i].opts // empty" "$CONFIG_FILE")
+
+    # Validate required fields
+    if [[ -z "$name" ]]; then
+        echo "ERROR: SSH tunnel at index ${i} is missing 'name'" >&2
+        exit 1
+    fi
+    if [[ -z "$forward" ]]; then
+        echo "ERROR: SSH tunnel '${name}' is missing 'forward'" >&2
+        exit 1
+    fi
+    if [[ -z "$host" ]]; then
+        echo "ERROR: SSH tunnel '${name}' is missing 'host'" >&2
+        exit 1
+    fi
+
+    # Default label to capitalized name
+    if [[ -z "$label" ]]; then
+        label="${name^}"
+    fi
+
+    # Check for duplicate names (across both SQL and SSH)
+    for existing in "${TUNNEL_NAMES[@]}" "${SSH_NAMES[@]}"; do
+        if [[ "$existing" == "$name" ]]; then
+            echo "ERROR: Duplicate tunnel name '${name}'" >&2
+            exit 1
+        fi
+    done
+
+    SSH_NAMES+=("$name")
+    SSH_LABELS+=("$label")
+    SSH_FORWARDS+=("$forward")
+    SSH_HOSTS+=("$host")
+    SSH_OPTS+=("$opts")
+done
+
 # --- Path helpers ---
 
-pid_file() { echo "${STATE_DIR}/${1}.pid"; }
-log_file() { echo "${STATE_DIR}/${1}.log"; }
+sql_pid_file() { echo "${STATE_DIR}/sql/${1}.pid"; }
+sql_log_file() { echo "${STATE_DIR}/sql/${1}.log"; }
+ssh_pid_file() { echo "${STATE_DIR}/ssh/${1}.pid"; }
+ssh_log_file() { echo "${STATE_DIR}/ssh/${1}.log"; }
+
+# Legacy aliases for proxy-ctl.sh compatibility
+pid_file() { sql_pid_file "$1"; }
+log_file() { sql_log_file "$1"; }

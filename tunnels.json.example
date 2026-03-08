@@ -13,5 +13,14 @@
       "instance": "my-project:us-central1:my-db-prod",
       "port": 3308
     }
+  ],
+  "ssh_tunnels": [
+    {
+      "name": "example",
+      "label": "Ex",
+      "forward": "-L 8080:127.0.0.1:8080",
+      "host": "user@example.com",
+      "opts": ""
+    }
   ]
 }

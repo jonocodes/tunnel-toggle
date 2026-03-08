@@ -50,7 +50,7 @@ start_tunnel() {
     pf="$(pid_file "$name")"
     lf="$(log_file "$name")"
 
-    mkdir -p "$STATE_DIR"
+    mkdir -p "${STATE_DIR}/sql"
 
     nohup "$PROXY_BINARY" --port "$port" "$instance" \
         > "$lf" 2>&1 &
@@ -61,7 +61,7 @@ start_tunnel() {
     sleep 1
     if ! kill -0 "$pid" 2>/dev/null; then
         rm -f "$pf"
-        osascript -e "display notification \"Failed to start ${name} tunnel. Check logs.\" with title \"SQL Proxy Menubar\"" 2>/dev/null || true
+        osascript -e "display notification \"Failed to start ${name} tunnel. Check logs.\" with title \"Tunnel Toggle\"" 2>/dev/null || true
         return 1
     fi
 }
