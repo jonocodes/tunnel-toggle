@@ -69,7 +69,7 @@ ssh_start_tunnel() {
     sleep 1
     if ! kill -0 "$pid" 2>/dev/null; then
         rm -f "$pf"
-        osascript -e "display notification \"Failed to start SSH tunnel '${name}'. Check logs.\" with title \"Tunnel Toggle\"" 2>/dev/null || true
+        notify-send "Tunnel Toggle" "Failed to start SSH tunnel '${name}'. Check logs." 2>/dev/null || true
         return 1
     fi
 }
@@ -113,7 +113,7 @@ ssh_copy_connection() {
     idx=$(ssh_tunnel_index "$name")
     local forward="${SSH_FORWARDS[$idx]}"
     local host="${SSH_HOSTS[$idx]}"
-    echo "ssh -N ${forward} ${host}" | /usr/bin/pbcopy
+    echo "ssh -N ${forward} ${host}" | xclip -selection clipboard 2>/dev/null || echo "ssh -N ${forward} ${host}"
 }
 
 # Run an action on one or all SSH tunnels

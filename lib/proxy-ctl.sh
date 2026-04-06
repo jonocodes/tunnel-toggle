@@ -52,7 +52,7 @@ start_tunnel() {
 
     mkdir -p "${STATE_DIR}/sql"
 
-    nohup "$PROXY_BINARY" --port "$port" "$instance" \
+    nohup "$PROXY_BINARY" --address 0.0.0.0 --port "$port" "$instance" \
         > "$lf" 2>&1 &
     local pid=$!
     echo "$pid" > "$pf"
@@ -61,7 +61,7 @@ start_tunnel() {
     sleep 1
     if ! kill -0 "$pid" 2>/dev/null; then
         rm -f "$pf"
-        osascript -e "display notification \"Failed to start ${name} tunnel. Check logs.\" with title \"Tunnel Toggle\"" 2>/dev/null || true
+        notify-send "Tunnel Toggle" "Failed to start ${name} tunnel. Check logs." 2>/dev/null || true
         return 1
     fi
 }
@@ -104,7 +104,7 @@ copy_connection() {
     local idx
     idx=$(tunnel_index "$name")
     local port="${TUNNEL_PORTS[$idx]}"
-    echo "mysql -h 127.0.0.1 -P ${port}" | /usr/bin/pbcopy
+    echo "mysql -h 127.0.0.1 -P ${port}" | xclip -selection clipboard 2>/dev/null || echo "mysql -h 127.0.0.1 -P ${port}"
 }
 
 # Run an action on one or all tunnels

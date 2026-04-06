@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+source "${SCRIPT_DIR}/config.sh"
+
+SQL_CTL="${SCRIPT_DIR}/lib/proxy-ctl.sh"
+SSH_CTL="${SCRIPT_DIR}/lib/ssh-ctl.sh"
+
+GREEN='\033[32m'
+RED='\033[31m'
+DIM='\033[2m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+usage() {
+    echo "Usage: tunnel <command> [target]"
+    echo ""
+    echo "Commands:"
+    echo "  status          Show all tunnel statuses (default)"
+    echo "  up [name|all]   Start tunnel(s)  (default: all)"
+    echo "  down [name|all] Stop tunnel(s)   (default: all)"
+    echo "  restart [name]  Restart tunnel(s)"
+    echo "  logs <name>     Tail logs for a tunnel"
+    echo ""
+    echo "Tunnels:"
+    for name in "${TUNNEL_NAMES[@]}"; do echo "  ${name} (sql)"; done
+    for name in "${SSH_NAMES[@]}"; do echo "  ${name} (ssh)"; done
+}
+
+print_status() {
+    printf "\n${BOLD}%-20s %-8s %-10s %s${RESET}\n" "TUNNEL" "TYPE" "STATUS" "DETAILS"
+    printf "${DIM}%-20s %-8s %-10s %s${RESET}\n" "------" "----" "------" "-------"
+
+    for i in "${!TUNNEL_NAMES[@]}"; do
+        name="${TUNNEL_NAMES[$i]}"
+        port="${TUNNEL_PORTS[$i]}"
+        instance="${TUNNEL_INSTANCES[$i]}"
+        pf="$(pid_file "$name")"
+        if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
+            printf "%-20s %-8s ${GREEN}%-10s${RESET} %s\n" "$name" "sql" "running" "localhost:${port} → ${instance}"
+        else
+            printf "%-20s %-8s ${RED}%-10s${RESET} %s\n" "$name" "sql" "stopped" "localhost:${port} → ${instance}"
+        fi
+    done
+
+    for i in "${!SSH_NAMES[@]}"; do
+        name="${SSH_NAMES[$i]}"
+        forward="${SSH_FORWARDS[$i]}"
+        host="${SSH_HOSTS[$i]}"
+        local_port=$(echo "$forward" | grep -oE '[0-9]+' | head -1)
+        pf="$(ssh_pid_file "$name")"
+        if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
+            printf "%-20s %-8s ${GREEN}%-10s${RESET} %s\n" "$name" "ssh" "running" "localhost:${local_port} → ${host}"
+        else
+            printf "%-20s %-8s ${RED}%-10s${RESET} %s\n" "$name" "ssh" "stopped" "localhost:${local_port} → ${host}"
+        fi
+    done
+    echo ""
+}
+
+# Determine if a target is SQL or SSH
+run_target() {
+    local action="$1"
+    local target="${2:-all}"
+
+    if [[ "$target" == "all" ]]; then
+        "$SQL_CTL" "$action" all
+        "$SSH_CTL" "$action" all
+        return
+    fi
+
+    # Check SQL tunnels
+    for name in "${TUNNEL_NAMES[@]}"; do
+        if [[ "$name" == "$target" ]]; then
+            "$SQL_CTL" "$action" "$target"
+            return
+        fi
+    done
+
+    # Check SSH tunnels
+    for name in "${SSH_NAMES[@]}"; do
+        if [[ "$name" == "$target" ]]; then
+            "$SSH_CTL" "$action" "$target"
+            return
+        fi
+    done
+
+    echo "Unknown tunnel: ${target}" >&2
+    exit 1
+}
+
+CMD="${1:-status}"
+TARGET="${2:-all}"
+
+case "$CMD" in
+    status|s)
+        print_status
+        ;;
+    up|start)
+        run_target start "$TARGET"
+        print_status
+        ;;
+    down|stop)
+        run_target stop "$TARGET"
+        print_status
+        ;;
+    restart)
+        run_target stop "$TARGET"
+        sleep 1
+        run_target start "$TARGET"
+        print_status
+        ;;
+    logs|log)
+        if [[ "$TARGET" == "all" ]]; then
+            echo "Specify a tunnel name for logs" >&2
+            exit 1
+        fi
+        # Find the log file
+        for name in "${TUNNEL_NAMES[@]}"; do
+            if [[ "$name" == "$TARGET" ]]; then
+                tail -f "$(log_file "$TARGET")"
+                exit 0
+            fi
+        done
+        for name in "${SSH_NAMES[@]}"; do
+            if [[ "$name" == "$TARGET" ]]; then
+                tail -f "$(ssh_log_file "$TARGET")"
+                exit 0
+            fi
+        done
+        echo "Unknown tunnel: ${TARGET}" >&2
+        exit 1
+        ;;
+    help|-h|--help)
+        usage
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac
