@@ -17,7 +17,7 @@ STATE_DIR="${HOME}/.tunnel-toggle"
 # --- Validate dependencies ---
 
 if ! command -v jq &>/dev/null; then
-    echo "ERROR: jq is required but not found. Install it: brew install jq" >&2
+    echo "ERROR: jq is required but not found. Install it with your package manager (brew install jq / apt install jq / pacman -S jq)." >&2
     exit 1
 fi
 

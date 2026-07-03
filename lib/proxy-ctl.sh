@@ -104,7 +104,8 @@ copy_connection() {
     local idx
     idx=$(tunnel_index "$name")
     local port="${TUNNEL_PORTS[$idx]}"
-    echo "mysql -h 127.0.0.1 -P ${port}" | xclip -selection clipboard 2>/dev/null || echo "mysql -h 127.0.0.1 -P ${port}"
+    local conn="mysql -h 127.0.0.1 -P ${port}"
+    echo "$conn" | { xclip -selection clipboard 2>/dev/null || wl-copy 2>/dev/null; } || echo "$conn"
 }
 
 # Run an action on one or all tunnels

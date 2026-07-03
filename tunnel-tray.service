@@ -1,0 +1,13 @@
+[Unit]
+Description=Tunnel Toggle KDE/SNI tray indicator
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/Documents/tunnel-toggle/lib/tunnel-tray.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
