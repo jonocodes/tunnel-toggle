@@ -17,22 +17,55 @@ tunnel_index() {
     exit 1
 }
 
+# Find a live proxy process for a tunnel by matching its command line.
+# Used when the PID file is missing (e.g. the tunnel was renamed), so a
+# running tunnel can't be orphaned under a stale name.
+proxy_find_pid() {
+    local idx="$1"
+    local port="${TUNNEL_PORTS[$idx]}"
+    local instance="${TUNNEL_INSTANCES[$idx]}"
+    local proc pid cmd
+    proc="$(basename "${PROXY_BINARY:-cloud-sql-proxy}")"
+    for pid in $(pgrep -x "$proc" 2>/dev/null || true); do
+        cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+        if [[ "$cmd" == *"--port ${port} "* && "$cmd" == *"${instance}"* ]]; then
+            echo "$pid"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Resolve a tunnel's live PID, healing the PID file when the process is found
+# by command line. Echoes the PID and returns 0 when running.
+proxy_resolve_pid() {
+    local name="$1"
+    local pf pid idx
+    pf="$(pid_file "$name")"
+
+    if [[ -f "$pf" ]]; then
+        pid="$(cat "$pf" 2>/dev/null || true)"
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            echo "$pid"
+            return 0
+        fi
+        # Stale PID file — clean up
+        rm -f "$pf"
+    fi
+
+    idx="$(tunnel_index "$name")"
+    if pid="$(proxy_find_pid "$idx")" && [[ -n "$pid" ]]; then
+        echo "$pid" > "$pf"
+        echo "$pid"
+        return 0
+    fi
+
+    return 1
+}
+
 # Check if a tunnel's proxy process is running
 is_running() {
-    local name="$1"
-    local pf
-    pf="$(pid_file "$name")"
-    if [[ -f "$pf" ]]; then
-        local pid
-        pid=$(cat "$pf")
-        if kill -0 "$pid" 2>/dev/null; then
-            return 0
-        else
-            # Stale PID file — clean up
-            rm -f "$pf"
-        fi
-    fi
-    return 1
+    proxy_resolve_pid "$1" >/dev/null 2>&1
 }
 
 # Start a tunnel
@@ -73,23 +106,19 @@ start_tunnel() {
 # Stop a tunnel
 stop_tunnel() {
     local name="$1"
-    local pf
+    local pf pid
     pf="$(pid_file "$name")"
-    if [[ -f "$pf" ]]; then
-        local pid
-        pid=$(cat "$pf")
-        if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null
-            # Wait for graceful shutdown
-            for _ in {1..10}; do
-                kill -0 "$pid" 2>/dev/null || break
-                sleep 0.2
-            done
-            # Force kill if still alive
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
-        fi
-        rm -f "$pf"
+    if pid="$(proxy_resolve_pid "$name")" && [[ -n "$pid" ]]; then
+        kill "$pid" 2>/dev/null || true
+        # Wait for graceful shutdown
+        for _ in {1..10}; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.2
+        done
+        # Force kill if still alive
+        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
     fi
+    rm -f "$pf"
 }
 
 # Toggle a tunnel on/off

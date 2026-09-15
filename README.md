@@ -113,6 +113,8 @@ The menu's **Edit Config** item opens `tunnels.json` in TextEdit. SwiftBar re-ru
 
 All tunnel definitions live in `tunnels.json` (gitignored, so your details stay local). Open it with **Edit Config** from either tray menu, or just edit the file directly — changes are hot-reloaded (within 5s on macOS and Linux).
 
+Tunnel processes are tracked by a PID file under `~/.tunnel-toggle/`, keyed by tunnel name. If a PID file is missing — for example after renaming a tunnel in `tunnels.json` — the helpers fall back to finding the running process by its command line (matching the forward/host or instance/port) and re-adopt it, so a rename can't orphan a live tunnel.
+
 ```json
 {
   "proxy_binary": "/home/you/.local/bin/cloud-sql-proxy",
@@ -199,6 +201,7 @@ Lower-level helpers (used by the tray) are available too:
 - **SQL auth errors** — run `gcloud auth application-default login`.
 - **Tray icon missing (Linux)** — confirm your desktop has an SNI tray (see the note above); check `systemctl --user status tunnel-tray.service`.
 - **Menu is stale after a config change** — the tray reloads changes within 5s; if it doesn't, use **Reload config** in the menu or `systemctl --user restart tunnel-tray.service`.
+- **Can't stop a tunnel after renaming it** — the helpers find a running process by command line and re-adopt it, so `./tunnel down <name>` works under the new name. If you renamed a tunnel and the old process is still bound to its port, run `./tunnel down <newname>` (or kill the PID shown by `lsof -i :<port>`).
 - **SSH host key changed** — remove the old key from `~/.ssh/known_hosts`.
 - **SSH key passphrase** — load the key into ssh-agent: `ssh-add ~/.ssh/your_key`.
 
