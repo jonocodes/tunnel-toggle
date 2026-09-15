@@ -113,7 +113,8 @@ ssh_copy_connection() {
     idx=$(ssh_tunnel_index "$name")
     local forward="${SSH_FORWARDS[$idx]}"
     local host="${SSH_HOSTS[$idx]}"
-    local conn="ssh -N ${forward} ${host}"
+    local opts="${SSH_OPTS[$idx]}"
+    local conn="ssh -N ${opts} ${forward} ${host}"
     echo "$conn" | { pbcopy 2>/dev/null || xclip -selection clipboard 2>/dev/null || wl-copy 2>/dev/null; } || echo "$conn"
 }
 
