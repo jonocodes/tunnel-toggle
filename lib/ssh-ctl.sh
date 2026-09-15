@@ -114,7 +114,7 @@ ssh_copy_connection() {
     local forward="${SSH_FORWARDS[$idx]}"
     local host="${SSH_HOSTS[$idx]}"
     local conn="ssh -N ${forward} ${host}"
-    echo "$conn" | { xclip -selection clipboard 2>/dev/null || wl-copy 2>/dev/null; } || echo "$conn"
+    echo "$conn" | { pbcopy 2>/dev/null || xclip -selection clipboard 2>/dev/null || wl-copy 2>/dev/null; } || echo "$conn"
 }
 
 # Run an action on one or all SSH tunnels
