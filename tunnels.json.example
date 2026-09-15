@@ -5,7 +5,8 @@
       "name": "dev",
       "label": "Dev",
       "instance": "my-project:us-central1:my-db-dev",
-      "port": 3307
+      "port": 3307,
+      "engine": "mysql"
     },
     {
       "name": "prod",

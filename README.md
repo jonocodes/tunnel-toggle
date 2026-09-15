@@ -151,6 +151,7 @@ Tunnel processes are tracked by a PID file under `~/.tunnel-toggle/`, keyed by t
 | `port`     | Yes      | Local port to bind (e.g. `3307`)                                 |
 | `label`    | No       | Display name in the tray (defaults to capitalized `name`)        |
 | `auto_iam_authn` | No | Pass `--auto-iam-authn` to the proxy. Required for Cloud SQL instances that use IAM database authentication (defaults to `false`) |
+| `engine`   | No       | Database engine for the copied connection string: `mysql` (`mysql -h 127.0.0.1 -P <port>`) or `postgres` (`psql -h 127.0.0.1 -p <port>`). Defaults to `mysql` |
 
 ### SSH tunnel fields
 
