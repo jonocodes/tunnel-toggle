@@ -178,6 +178,7 @@ for i in "${!SSH_NAMES[@]}"; do
 done
 
 echo "---"
+echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil"
 echo "Refresh | refresh=true sfimage=arrow.clockwise"
 
 echo "---"
