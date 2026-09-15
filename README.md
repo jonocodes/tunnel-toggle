@@ -118,7 +118,8 @@ All tunnel definitions live in `tunnels.json` (gitignored, so your details stay 
       "name": "dev",
       "label": "Dev",
       "instance": "my-project:us-central1:my-db-dev",
-      "port": 3307
+      "port": 3307,
+      "auto_iam_authn": true
     }
   ],
   "ssh_tunnels": [
@@ -141,6 +142,7 @@ All tunnel definitions live in `tunnels.json` (gitignored, so your details stay 
 | `instance` | Yes      | GCP connection string: `project:region:instance`                 |
 | `port`     | Yes      | Local port to bind (e.g. `3307`)                                 |
 | `label`    | No       | Display name in the tray (defaults to capitalized `name`)        |
+| `auto_iam_authn` | No | Pass `--auto-iam-authn` to the proxy. Required for Cloud SQL instances that use IAM database authentication (defaults to `false`) |
 
 ### SSH tunnel fields
 

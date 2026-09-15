@@ -55,12 +55,14 @@ TUNNEL_NAMES=()
 TUNNEL_LABELS=()
 TUNNEL_INSTANCES=()
 TUNNEL_PORTS=()
+TUNNEL_IAM=()
 
-for i in $(seq 0 $((tunnel_count - 1))); do
+for (( i=0; i<tunnel_count; i++ )); do
     name=$(jq -r ".tunnels[$i].name // empty" "$CONFIG_FILE")
     label=$(jq -r ".tunnels[$i].label // empty" "$CONFIG_FILE")
     instance=$(jq -r ".tunnels[$i].instance // empty" "$CONFIG_FILE")
     port=$(jq -r ".tunnels[$i].port // empty" "$CONFIG_FILE")
+    iam=$(jq -r ".tunnels[$i].auto_iam_authn // false" "$CONFIG_FILE")
 
     # Validate required fields
     if [[ -z "$name" ]]; then
@@ -101,6 +103,7 @@ for i in $(seq 0 $((tunnel_count - 1))); do
     TUNNEL_LABELS+=("$label")
     TUNNEL_INSTANCES+=("$instance")
     TUNNEL_PORTS+=("$port")
+    TUNNEL_IAM+=("$iam")
 done
 
 # --- SSH Tunnels ---
@@ -113,7 +116,7 @@ SSH_FORWARDS=()
 SSH_HOSTS=()
 SSH_OPTS=()
 
-for i in $(seq 0 $((ssh_tunnel_count - 1))); do
+for (( i=0; i<ssh_tunnel_count; i++ )); do
     name=$(jq -r ".ssh_tunnels[$i].name // empty" "$CONFIG_FILE")
     label=$(jq -r ".ssh_tunnels[$i].label // empty" "$CONFIG_FILE")
     forward=$(jq -r ".ssh_tunnels[$i].forward // empty" "$CONFIG_FILE")

@@ -11,7 +11,8 @@
       "name": "prod",
       "label": "Production",
       "instance": "my-project:us-central1:my-db-prod",
-      "port": 3308
+      "port": 3308,
+      "auto_iam_authn": true
     }
   ],
   "ssh_tunnels": [
