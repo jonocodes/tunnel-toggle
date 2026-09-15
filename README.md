@@ -2,6 +2,8 @@
 
 A one-click tray tool for managing **Google Cloud SQL Auth Proxy** and **SSH tunnels** — on both **macOS** (via a [SwiftBar](https://swiftbar.app) menu bar plugin) and **Linux** (via a system-tray indicator + systemd service). Ships with a `tunnel` CLI too.
 
+![Tunnel Toggle menu bar menu on macOS, showing per-tunnel connection status and actions](screenshot-mac.png)
+
 ## Features
 
 - Start/stop Cloud SQL Proxy and SSH tunnels from your menu bar / system tray
