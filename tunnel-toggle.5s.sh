@@ -85,7 +85,7 @@ echo "---"
 
 # SQL tunnel sections
 if [[ $sql_total -gt 0 ]]; then
-    echo "SQL Tunnels | sfimage=cylinder.split"
+    echo "SQL Tunnels | sfimage=server.rack"
     for i in "${!TUNNEL_NAMES[@]}"; do
         name="${TUNNEL_NAMES[$i]}"
         label="${TUNNEL_LABELS[$i]}"
@@ -109,7 +109,7 @@ fi
 # SSH tunnel sections
 if [[ $ssh_total -gt 0 ]]; then
     echo "---"
-    echo "SSH Tunnels | sfimage=lock.shield"
+    echo "SSH Tunnels | sfimage=network.badge.shield.half.filled"
     for i in "${!SSH_NAMES[@]}"; do
         name="${SSH_NAMES[$i]}"
         label="${SSH_LABELS[$i]}"
@@ -148,7 +148,7 @@ fi
 echo "---"
 
 # Copy connection strings
-echo "Copy Connection String | sfimage=doc.on.doc"
+echo "Copy Connection String | sfimage=square.on.square"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -163,7 +163,7 @@ done
 echo "---"
 
 # View logs
-echo "View Logs | sfimage=doc.text.magnifyingglass"
+echo "View Logs | sfimage=text.magnifyingglass"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -178,8 +178,8 @@ for i in "${!SSH_NAMES[@]}"; do
 done
 
 echo "---"
-echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil"
-echo "Refresh | refresh=true sfimage=arrow.clockwise"
+echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=square.and.pencil"
+echo "Refresh | refresh=true sfimage=arrow.clockwise.circle"
 
 echo "---"
 echo "About | sfimage=info.circle"
