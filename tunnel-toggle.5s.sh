@@ -95,7 +95,7 @@ echo "---"
 
 # SQL tunnel sections
 if [[ $sql_total -gt 0 ]]; then
-    echo "SQL Tunnels | sfimage=cylinder.split"
+    echo "SQL Tunnels | sfimage=cylinder.split.1x2 width=16 height=16"
     for i in "${!TUNNEL_NAMES[@]}"; do
         name="${TUNNEL_NAMES[$i]}"
         label="${TUNNEL_LABELS[$i]}"
@@ -104,12 +104,12 @@ if [[ $sql_total -gt 0 ]]; then
         state="${SQL_STATUSES[$i]}"
 
         if [[ "$state" == "running" ]]; then
-            echo "--${label}: Connected | color=#34C759 sfimage=checkmark.circle.fill"
+            echo "--${label}: Connected | color=#34C759 sfimage=checkmark.circle.fill width=16 height=16"
             echo "----localhost:${port} | color=#888888 size=12"
             echo "----${instance} | color=#888888 size=10"
             echo "----Stop ${label} | bash=${SQL_HELPER} param1=stop param2=${name} terminal=false refresh=true color=#FF3B30"
         else
-            echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle"
+            echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle width=16 height=16"
             echo "----localhost:${port} | color=#888888 size=12"
             echo "----Start ${label} | bash=${SQL_HELPER} param1=start param2=${name} terminal=false refresh=true color=#34C759"
         fi
@@ -119,7 +119,7 @@ fi
 # SSH tunnel sections
 if [[ $ssh_total -gt 0 ]]; then
     echo "---"
-    echo "SSH Tunnels | sfimage=lock.shield"
+    echo "SSH Tunnels | sfimage=lock.shield width=16 height=16"
     for i in "${!SSH_NAMES[@]}"; do
         name="${SSH_NAMES[$i]}"
         label="${SSH_LABELS[$i]}"
@@ -131,12 +131,12 @@ if [[ $ssh_total -gt 0 ]]; then
         local_port=$(echo "$forward" | grep -oE '[0-9]+' | head -1)
 
         if [[ "$state" == "running" ]]; then
-            echo "--${label}: Connected | color=#34C759 sfimage=checkmark.circle.fill"
+            echo "--${label}: Connected | color=#34C759 sfimage=checkmark.circle.fill width=16 height=16"
             echo "----localhost:${local_port} | color=#888888 size=12"
             echo "----${host} | color=#888888 size=10"
             echo "----Stop ${label} | bash=${SSH_HELPER} param1=stop param2=${name} terminal=false refresh=true color=#FF3B30"
         else
-            echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle"
+            echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle width=16 height=16"
             echo "----localhost:${local_port} | color=#888888 size=12"
             echo "----Start ${label} | bash=${SSH_HELPER} param1=start param2=${name} terminal=false refresh=true color=#34C759"
         fi
@@ -147,18 +147,18 @@ echo "---"
 
 # Bulk actions — trigger both SQL and SSH helpers via bulk-ctl
 if [[ $running_count -eq $total ]]; then
-    echo "Stop All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=stop terminal=false refresh=true color=#FF3B30 sfimage=stop.circle"
+    echo "Stop All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=stop terminal=false refresh=true color=#FF3B30 sfimage=stop.circle width=16 height=16"
 elif [[ $running_count -eq 0 ]]; then
-    echo "Start All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=start terminal=false refresh=true color=#34C759 sfimage=play.circle"
+    echo "Start All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=start terminal=false refresh=true color=#34C759 sfimage=play.circle width=16 height=16"
 else
-    echo "Start All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=start terminal=false refresh=true color=#34C759 sfimage=play.circle"
-    echo "Stop All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=stop terminal=false refresh=true color=#FF3B30 sfimage=stop.circle"
+    echo "Start All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=start terminal=false refresh=true color=#34C759 sfimage=play.circle width=16 height=16"
+    echo "Stop All Tunnels | bash=${SCRIPT_DIR}/lib/bulk-ctl.sh param1=stop terminal=false refresh=true color=#FF3B30 sfimage=stop.circle width=16 height=16"
 fi
 
 echo "---"
 
 # Copy connection strings
-echo "Copy Connection String | sfimage=doc.on.doc"
+echo "Copy Connection String | sfimage=doc.on.doc width=16 height=16"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -173,7 +173,7 @@ done
 echo "---"
 
 # View logs
-echo "View Logs | sfimage=doc.text.magnifyingglass"
+echo "View Logs | sfimage=doc.text.magnifyingglass width=16 height=16"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -188,11 +188,11 @@ for i in "${!SSH_NAMES[@]}"; do
 done
 
 echo "---"
-echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil"
-echo "Refresh | refresh=true sfimage=arrow.clockwise"
+echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil width=16 height=16"
+echo "Refresh | refresh=true sfimage=arrow.clockwise width=16 height=16"
 
 echo "---"
-echo "About | sfimage=info.circle"
+echo "About | sfimage=info.circle width=16 height=16"
 echo "--Tunnel Toggle v2.0 | color=#888888"
 echo "--SQL Proxies: ${sql_total} configured | color=#888888 size=12"
 echo "--SSH Tunnels: ${ssh_total} configured | color=#888888 size=12"
