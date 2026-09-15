@@ -6,9 +6,11 @@ source "${SCRIPT_DIR}/config.sh"
 
 SQL_CTL="${SCRIPT_DIR}/lib/proxy-ctl.sh"
 SSH_CTL="${SCRIPT_DIR}/lib/ssh-ctl.sh"
+AUTH_CTL="${SCRIPT_DIR}/lib/auth-ctl.sh"
 
 GREEN='\033[32m'
 RED='\033[31m'
+YELLOW='\033[33m'
 DIM='\033[2m'
 BOLD='\033[1m'
 RESET='\033[0m'
@@ -22,6 +24,7 @@ usage() {
     echo "  down [name|all] Stop tunnel(s)   (default: all)"
     echo "  restart [name]  Restart tunnel(s)"
     echo "  logs <name>     Tail logs for a tunnel"
+    echo "  auth            Reauth gcloud ADC, then restart tunnels needing it"
     echo ""
     echo "Tunnels:"
     for name in "${TUNNEL_NAMES[@]}"; do echo "  ${name} (sql)"; done
@@ -36,12 +39,17 @@ print_status() {
         name="${TUNNEL_NAMES[$i]}"
         port="${TUNNEL_PORTS[$i]}"
         instance="${TUNNEL_INSTANCES[$i]}"
-        pf="$(pid_file "$name")"
-        if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
-            printf "%-20s %-8s ${GREEN}%-10s${RESET} %s\n" "$name" "sql" "running" "localhost:${port} → ${instance}"
-        else
-            printf "%-20s %-8s ${RED}%-10s${RESET} %s\n" "$name" "sql" "stopped" "localhost:${port} → ${instance}"
-        fi
+        case "$(sql_status_of "$name")" in
+            running)
+                printf "%-20s %-8s ${GREEN}%-10s${RESET} %s\n" "$name" "sql" "running" "localhost:${port} → ${instance}"
+                ;;
+            needs-auth)
+                printf "%-20s %-8s ${YELLOW}%-10s${RESET} %s\n" "$name" "sql" "needs-auth" "run 'tunnel auth' (ADC expired)"
+                ;;
+            *)
+                printf "%-20s %-8s ${RED}%-10s${RESET} %s\n" "$name" "sql" "stopped" "localhost:${port} → ${instance}"
+                ;;
+        esac
     done
 
     for i in "${!SSH_NAMES[@]}"; do
@@ -109,6 +117,10 @@ case "$CMD" in
         run_target stop "$TARGET"
         sleep 1
         run_target start "$TARGET"
+        print_status
+        ;;
+    auth)
+        "$AUTH_CTL" login-restart
         print_status
         ;;
     logs|log)

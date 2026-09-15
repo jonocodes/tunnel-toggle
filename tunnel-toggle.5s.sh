@@ -17,20 +17,21 @@ SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 source "${SCRIPT_DIR}/config.sh"
 SQL_HELPER="${SCRIPT_DIR}/lib/proxy-ctl.sh"
 SSH_HELPER="${SCRIPT_DIR}/lib/ssh-ctl.sh"
+AUTH_HELPER="${SCRIPT_DIR}/lib/auth-ctl.sh"
 
-# --- Detect status of SQL tunnels ---
+# --- Detect status of SQL tunnels (running | needs-auth | stopped) ---
 declare -a SQL_STATUSES=()
 sql_running=0
+sql_needs_auth=0
 
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
-    pf="$(pid_file "$name")"
-    if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
-        SQL_STATUSES[$i]="running"
-        ((sql_running++))
-    else
-        SQL_STATUSES[$i]="stopped"
-    fi
+    state="$(sql_status_of "$name")"
+    SQL_STATUSES[$i]="$state"
+    case "$state" in
+        running)    ((sql_running++)) ;;
+        needs-auth) ((sql_needs_auth++)) ;;
+    esac
 done
 
 # --- Detect status of SSH tunnels ---
@@ -58,7 +59,11 @@ title_parts=()
 
 for i in "${!TUNNEL_NAMES[@]}"; do
     letter="${TUNNEL_LABELS[$i]:0:1}"
-    icon=$([[ "${SQL_STATUSES[$i]}" == "running" ]] && echo "+" || echo "-")
+    case "${SQL_STATUSES[$i]}" in
+        running)    icon="+" ;;
+        needs-auth) icon="!" ;;
+        *)          icon="-" ;;
+    esac
     title_parts+=("${letter}:${icon}")
 done
 
@@ -70,7 +75,9 @@ done
 
 title=$(IFS=" "; echo "${title_parts[*]}")
 
-if [[ $running_count -eq 0 ]]; then
+if [[ $sql_needs_auth -gt 0 ]]; then
+    color="#FF9500"
+elif [[ $running_count -eq 0 ]]; then
     color="#888888"
 elif [[ $running_count -eq $total ]]; then
     color="#34C759"
@@ -98,6 +105,11 @@ if [[ $sql_total -gt 0 ]]; then
             echo "----localhost:${port} | color=#888888 size=12"
             echo "----${instance} | color=#888888 size=10"
             echo "----Stop ${label} | bash=${SQL_HELPER} param1=stop param2=${name} terminal=false refresh=true color=#FF3B30"
+        elif [[ "$state" == "needs-auth" ]]; then
+            echo "--${label}: Needs gcloud auth | color=#FF9500 sfimage=key.fill"
+            echo "----localhost:${port} | color=#888888 size=12"
+            echo "----${instance} | color=#888888 size=10"
+            echo "----Reauth gcloud & restart | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true color=#FF9500"
         else
             echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle"
             echo "----localhost:${port} | color=#888888 size=12"
@@ -178,6 +190,7 @@ for i in "${!SSH_NAMES[@]}"; do
 done
 
 echo "---"
+echo "Reauth gcloud (ADC) | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true sfimage=key"
 echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil"
 echo "Refresh | refresh=true sfimage=arrow.clockwise"
 

@@ -82,6 +82,7 @@ echo "[OK] Config: ${CONFIG_FILE}"
 chmod +x "${PROJECT_DIR}/lib/proxy-ctl.sh" \
          "${PROJECT_DIR}/lib/ssh-ctl.sh" \
          "${PROJECT_DIR}/lib/bulk-ctl.sh" \
+         "${PROJECT_DIR}/lib/auth-ctl.sh" \
          "${PROJECT_DIR}/lib/tunnel-tray.py" \
          "${PROJECT_DIR}/tunnel" 2>/dev/null || true
 echo "[OK] Scripts made executable"

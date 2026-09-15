@@ -164,7 +164,7 @@ case "$ACTION" in
             if is_running "$name"; then
                 echo "${name}:running"
             else
-                echo "${name}:stopped"
+                echo "${name}:$(sql_status_of "$name")"
             fi
         done
         ;;

@@ -14,6 +14,7 @@ A one-click tray tool for managing **Google Cloud SQL Auth Proxy** and **SSH tun
 - A `tunnel` CLI for terminal-only workflows
 - Configure any number of tunnels via a simple JSON file
 - **Edit Config** opens `tunnels.json` in an editor, and changes are hot-reloaded
+- Detects expired gcloud ADC from tunnel logs and offers one-click **Reauth gcloud & restart**
 
 ## How it works
 
@@ -171,6 +172,18 @@ The resulting SSH command is: `ssh -N ${opts} ${forward} ${host}`
 
 > **Note:** the SQL proxy is launched bound to `--address 0.0.0.0` so containers (e.g. an MCP server) can reach it via `host.docker.internal`. On shared or untrusted networks, remember the local port is reachable from your LAN while a tunnel is up.
 
+## gcloud reauth
+
+SQL tunnels authenticate with Application Default Credentials. When the ADC refresh token expires or is revoked, `cloud-sql-proxy` exits with an auth error and the tunnel can't be fixed by a normal restart — it needs an interactive `gcloud auth application-default login`.
+
+Tunnel Toggle detects this by scanning each stopped SQL tunnel's log for auth errors, and surfaces it three ways:
+
+- **macOS menu bar:** the tunnel shows as `Needs gcloud auth` (`!` in the title). Reauth from the tunnel's submenu (`Reauth gcloud & restart`) or the top-level **Reauth gcloud (ADC)** item. A terminal opens so you can complete the browser flow.
+- **Linux tray:** the tunnel shows with a `⚠` prefix; selecting it reauths and restarts. **Reauth gcloud (ADC)** is also in the menu.
+- **CLI:** `./tunnel status` reports `needs-auth`; run `./tunnel auth` to log in.
+
+After a successful login, any tunnel that was waiting on auth is restarted automatically.
+
 ## CLI
 
 The `tunnel` script works everywhere, no tray required:
@@ -181,6 +194,7 @@ The `tunnel` script works everywhere, no tray required:
 ./tunnel down [name|all]     # stop tunnel(s)
 ./tunnel restart [name|all]  # restart tunnel(s)
 ./tunnel logs <name>         # tail a tunnel's logs
+./tunnel auth                # reauth gcloud ADC, then restart tunnels needing it
 ```
 
 Lower-level helpers (used by the tray) are available too:
@@ -189,6 +203,7 @@ Lower-level helpers (used by the tray) are available too:
 ./lib/proxy-ctl.sh start|stop|toggle|status|copy <name|all>   # SQL tunnels
 ./lib/ssh-ctl.sh   start|stop|toggle|status|copy <name|all>   # SSH tunnels
 ./lib/bulk-ctl.sh  start|stop                                 # everything
+./lib/auth-ctl.sh  login|login-restart|needs-auth             # gcloud ADC reauth
 ```
 
 ## Uninstall
@@ -200,7 +215,7 @@ Lower-level helpers (used by the tray) are available too:
 
 - **Tunnel won't start** — check logs at `~/.tunnel-toggle/sql/<name>.log` or `~/.tunnel-toggle/ssh/<name>.log`, or `./tunnel logs <name>`.
 - **Port already in use** — `ss -tlnp | grep <port>` (Linux) or `lsof -i :<port>` (macOS).
-- **SQL auth errors** — run `gcloud auth application-default login`.
+- **SQL auth errors / "needs-auth"** — expired ADC. Use **Reauth gcloud (ADC)** in either menu, or run `./tunnel auth` (falls back to `gcloud auth application-default login`).
 - **Tray icon missing (Linux)** — confirm your desktop has an SNI tray (see the note above); check `systemctl --user status tunnel-tray.service`.
 - **Menu is stale after a config change** — the tray reloads changes within 5s; if it doesn't, use **Reload config** in the menu or `systemctl --user restart tunnel-tray.service`.
 - **Can't stop a tunnel after renaming it** — the helpers find a running process by command line and re-adopt it, so `./tunnel down <name>` works under the new name. If you renamed a tunnel and the old process is still bound to its port, run `./tunnel down <newname>` (or kill the PID shown by `lsof -i :<port>`).

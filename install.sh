@@ -106,6 +106,7 @@ chmod +x "${PROJECT_DIR}/${PLUGIN_NAME}"
 chmod +x "${PROJECT_DIR}/lib/proxy-ctl.sh"
 chmod +x "${PROJECT_DIR}/lib/ssh-ctl.sh"
 chmod +x "${PROJECT_DIR}/lib/bulk-ctl.sh"
+chmod +x "${PROJECT_DIR}/lib/auth-ctl.sh"
 echo "[OK] Scripts made executable"
 
 # 12. Remove old symlink if present

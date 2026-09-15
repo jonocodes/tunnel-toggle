@@ -167,3 +167,33 @@ ssh_log_file() { echo "${STATE_DIR}/ssh/${1}.log"; }
 # Legacy aliases for proxy-ctl.sh compatibility
 pid_file() { sql_pid_file "$1"; }
 log_file() { sql_log_file "$1"; }
+
+# --- gcloud Application Default Credentials ---
+
+# Strings cloud-sql-proxy emits when ADC is missing, expired, or revoked
+# (an expired refresh token requires an interactive `gcloud auth
+# application-default login` — a plain proxy restart can't fix it).
+AUTH_ERROR_PATTERN='could not find default credentials|invalid_grant|invalid_rapt|reauthentication is required|token has been expired or revoked|credentials have been revoked|(failed|unable) to (get|retrieve|fetch|load|find) (a )?(credential|credentials|token)|oauth2: cannot fetch token|no valid credentials'
+
+GCLOUD_BINARY="${GCLOUD_BINARY:-$(command -v gcloud 2>/dev/null || echo gcloud)}"
+
+# Does a SQL tunnel's most recent log look like an ADC auth failure?
+sql_log_has_auth_error() {
+    local lf
+    lf="$(sql_log_file "$1")"
+    [[ -f "$lf" ]] || return 1
+    tail -n 40 "$lf" 2>/dev/null | grep -qiE "$AUTH_ERROR_PATTERN"
+}
+
+# State of a SQL tunnel by PID file alone: running | needs-auth | stopped
+sql_status_of() {
+    local name="$1" pf
+    pf="$(sql_pid_file "$name")"
+    if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
+        echo "running"
+    elif sql_log_has_auth_error "$name"; then
+        echo "needs-auth"
+    else
+        echo "stopped"
+    fi
+}
