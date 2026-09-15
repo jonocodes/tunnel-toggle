@@ -52,7 +52,11 @@ start_tunnel() {
 
     mkdir -p "${STATE_DIR}/sql"
 
-    nohup "$PROXY_BINARY" --address 0.0.0.0 --port "$port" "$instance" \
+    # Enable IAM database authentication when the tunnel opts in
+    local iam_flag=""
+    [[ "${TUNNEL_IAM[$idx]:-false}" == "true" ]] && iam_flag="--auto-iam-authn"
+
+    nohup "$PROXY_BINARY" $iam_flag --address 0.0.0.0 --port "$port" "$instance" \
         > "$lf" 2>&1 &
     local pid=$!
     echo "$pid" > "$pf"
