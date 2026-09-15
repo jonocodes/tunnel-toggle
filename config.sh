@@ -2,6 +2,10 @@
 # Configuration for Tunnel Toggle
 # Loads SQL and SSH tunnel definitions from tunnels.json
 
+# SwiftBar runs menu actions with a minimal PATH that omits Homebrew, so tools
+# like jq, cloud-sql-proxy, and pbcopy aren't found. Ensure common dirs are present.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+
 # Resolve script directory (works when sourced from any location)
 if [[ -n "${SCRIPT_DIR:-}" ]]; then
     CONFIG_DIR="$SCRIPT_DIR"
@@ -78,7 +82,7 @@ for i in $(seq 0 $((tunnel_count - 1))); do
     fi
 
     # Check for duplicate names
-    for existing in "${TUNNEL_NAMES[@]}"; do
+    for existing in ${TUNNEL_NAMES[@]+"${TUNNEL_NAMES[@]}"}; do
         if [[ "$existing" == "$name" ]]; then
             echo "ERROR: Duplicate tunnel name '${name}'" >&2
             exit 1
@@ -86,7 +90,7 @@ for i in $(seq 0 $((tunnel_count - 1))); do
     done
 
     # Check for duplicate ports
-    for existing in "${TUNNEL_PORTS[@]}"; do
+    for existing in ${TUNNEL_PORTS[@]+"${TUNNEL_PORTS[@]}"}; do
         if [[ "$existing" == "$port" ]]; then
             echo "ERROR: Duplicate port ${port} (tunnel '${name}')" >&2
             exit 1
@@ -136,7 +140,7 @@ for i in $(seq 0 $((ssh_tunnel_count - 1))); do
     fi
 
     # Check for duplicate names (across both SQL and SSH)
-    for existing in "${TUNNEL_NAMES[@]}" "${SSH_NAMES[@]}"; do
+    for existing in ${TUNNEL_NAMES[@]+"${TUNNEL_NAMES[@]}"} ${SSH_NAMES[@]+"${SSH_NAMES[@]}"}; do
         if [[ "$existing" == "$name" ]]; then
             echo "ERROR: Duplicate tunnel name '${name}'" >&2
             exit 1
