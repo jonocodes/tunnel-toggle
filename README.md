@@ -11,6 +11,7 @@ A one-click tray tool for managing **Google Cloud SQL Auth Proxy** and **SSH tun
 - Auto-refreshing status (every 5 seconds)
 - A `tunnel` CLI for terminal-only workflows
 - Configure any number of tunnels via a simple JSON file
+- **Edit Config** opens `tunnels.json` in an editor, and changes are hot-reloaded
 
 ## How it works
 
@@ -71,10 +72,10 @@ Useful commands:
 ```bash
 systemctl --user status tunnel-tray.service     # is the tray running?
 journalctl --user -u tunnel-tray.service -f     # tray logs
-systemctl --user restart tunnel-tray.service    # after editing tunnels.json
+systemctl --user restart tunnel-tray.service    # explicit restart (optional)
 ```
 
-Editing `tunnels.json` requires a tray restart (the menu is built at startup): `systemctl --user restart tunnel-tray.service`.
+Editing `tunnels.json` is picked up automatically: the tray watches the file and reloads within 5 seconds, so a restart is only needed as a fallback. Use **Edit config** in the menu to open it in your default editor, or **Reload config** to force an immediate reload. If a save is temporarily invalid JSON, the tray keeps the previous config and logs the error.
 
 ---
 
@@ -104,11 +105,13 @@ cp tunnels.json.example tunnels.json
 
 Launch SwiftBar and, when prompted, point its plugin folder at the location the installer reports. The Tunnel Toggle appears in your menu bar.
 
+The menu's **Edit Config** item opens `tunnels.json` in TextEdit. SwiftBar re-runs the plugin every 5 seconds, so saved changes appear automatically — no restart needed.
+
 ---
 
 ## Configuration
 
-All tunnel definitions live in `tunnels.json` (gitignored, so your details stay local).
+All tunnel definitions live in `tunnels.json` (gitignored, so your details stay local). Open it with **Edit Config** from either tray menu, or just edit the file directly — changes are hot-reloaded (within 5s on macOS and Linux).
 
 ```json
 {
@@ -195,7 +198,7 @@ Lower-level helpers (used by the tray) are available too:
 - **Port already in use** — `ss -tlnp | grep <port>` (Linux) or `lsof -i :<port>` (macOS).
 - **SQL auth errors** — run `gcloud auth application-default login`.
 - **Tray icon missing (Linux)** — confirm your desktop has an SNI tray (see the note above); check `systemctl --user status tunnel-tray.service`.
-- **Menu is stale after a config change** — restart the tray: `systemctl --user restart tunnel-tray.service`.
+- **Menu is stale after a config change** — the tray reloads changes within 5s; if it doesn't, use **Reload config** in the menu or `systemctl --user restart tunnel-tray.service`.
 - **SSH host key changed** — remove the old key from `~/.ssh/known_hosts`.
 - **SSH key passphrase** — load the key into ssh-agent: `ssh-add ~/.ssh/your_key`.
 

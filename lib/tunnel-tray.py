@@ -9,6 +9,7 @@ like Waybar.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,13 @@ def load_config():
     sql = cfg.get("tunnels", []) or []
     ssh = cfg.get("ssh_tunnels", []) or []
     return sql, ssh
+
+
+def config_mtime():
+    try:
+        return CONFIG_FILE.stat().st_mtime
+    except OSError:
+        return None
 
 
 def parse_status(script: Path):
@@ -72,6 +80,7 @@ def run_ctl(script: Path, *args):
 class TunnelTray:
     def __init__(self):
         self.sql, self.ssh = load_config()
+        self._mtime = config_mtime()
         self.indicator = AppIndicator.Indicator.new(
             "tunnel-toggle",
             ICON_NONE,
@@ -85,8 +94,20 @@ class TunnelTray:
         GLib.timeout_add_seconds(POLL_SECONDS, self._tick)
 
     def _tick(self):
+        self._reload_if_changed()
         self.refresh()
         return True
+
+    def _reload_if_changed(self):
+        mtime = config_mtime()
+        if mtime is None or mtime == self._mtime:
+            return
+        try:
+            self.sql, self.ssh = load_config()
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"config reload failed, keeping previous config: {exc}", file=sys.stderr)
+            return
+        self._mtime = mtime
 
     def refresh(self):
         sql_state = parse_status(SQL_CTL)
@@ -140,6 +161,9 @@ class TunnelTray:
         self.menu.append(copy_root)
 
         self.menu.append(Gtk.SeparatorMenuItem())
+        self._action("Edit config", self._edit_config)
+        self._action("Reload config", self._reload_now)
+        self.menu.append(Gtk.SeparatorMenuItem())
         self._action("Quit", Gtk.main_quit)
 
         self.menu.show_all()
@@ -176,6 +200,23 @@ class TunnelTray:
         item = Gtk.MenuItem(label=label)
         item.connect("activate", callback)
         self.menu.append(item)
+
+    def _edit_config(self, *_):
+        if shutil.which("xdg-open"):
+            opener = ["xdg-open", str(CONFIG_FILE)]
+        else:
+            opener = [os.environ.get("EDITOR") or "nano", str(CONFIG_FILE)]
+        subprocess.Popen(
+            opener,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    def _reload_now(self, *_):
+        self._mtime = None
+        self._reload_if_changed()
+        self.refresh()
 
     def _copy_sql(self, _item, t):
         self._copy(f"mysql -h 127.0.0.1 -P {t['port']}")
