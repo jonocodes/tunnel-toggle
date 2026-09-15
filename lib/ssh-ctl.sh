@@ -17,22 +17,54 @@ ssh_tunnel_index() {
     exit 1
 }
 
+# Find a live ssh process for a tunnel by matching its command line.
+# Used when the PID file is missing (e.g. the tunnel was renamed), so a
+# running tunnel can't be orphaned under a stale name.
+ssh_find_pid() {
+    local idx="$1"
+    local forward="${SSH_FORWARDS[$idx]}"
+    local host="${SSH_HOSTS[$idx]}"
+    local pid cmd
+    for pid in $(pgrep -x ssh 2>/dev/null || true); do
+        cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+        if [[ "$cmd" == *"$forward"* && "$cmd" == *"$host"* ]]; then
+            echo "$pid"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Resolve a tunnel's live PID, healing the PID file when the process is found
+# by command line. Echoes the PID and returns 0 when running.
+ssh_resolve_pid() {
+    local name="$1"
+    local pf pid idx
+    pf="$(ssh_pid_file "$name")"
+
+    if [[ -f "$pf" ]]; then
+        pid="$(cat "$pf" 2>/dev/null || true)"
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            echo "$pid"
+            return 0
+        fi
+        # Stale PID file — clean up
+        rm -f "$pf"
+    fi
+
+    idx="$(ssh_tunnel_index "$name")"
+    if pid="$(ssh_find_pid "$idx")" && [[ -n "$pid" ]]; then
+        echo "$pid" > "$pf"
+        echo "$pid"
+        return 0
+    fi
+
+    return 1
+}
+
 # Check if an SSH tunnel process is running
 ssh_is_running() {
-    local name="$1"
-    local pf
-    pf="$(ssh_pid_file "$name")"
-    if [[ -f "$pf" ]]; then
-        local pid
-        pid=$(cat "$pf")
-        if kill -0 "$pid" 2>/dev/null; then
-            return 0
-        else
-            # Stale PID file — clean up
-            rm -f "$pf"
-        fi
-    fi
-    return 1
+    ssh_resolve_pid "$1" >/dev/null 2>&1
 }
 
 # Start an SSH tunnel
@@ -77,23 +109,19 @@ ssh_start_tunnel() {
 # Stop an SSH tunnel
 ssh_stop_tunnel() {
     local name="$1"
-    local pf
+    local pf pid
     pf="$(ssh_pid_file "$name")"
-    if [[ -f "$pf" ]]; then
-        local pid
-        pid=$(cat "$pf")
-        if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" 2>/dev/null
-            # Wait for graceful shutdown
-            for _ in {1..10}; do
-                kill -0 "$pid" 2>/dev/null || break
-                sleep 0.2
-            done
-            # Force kill if still alive
-            kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
-        fi
-        rm -f "$pf"
+    if pid="$(ssh_resolve_pid "$name")" && [[ -n "$pid" ]]; then
+        kill "$pid" 2>/dev/null || true
+        # Wait for graceful shutdown
+        for _ in {1..10}; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.2
+        done
+        # Force kill if still alive
+        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
     fi
+    rm -f "$pf"
 }
 
 # Toggle an SSH tunnel on/off
