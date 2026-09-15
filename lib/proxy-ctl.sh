@@ -136,8 +136,8 @@ copy_connection() {
     local name="$1"
     local idx
     idx=$(tunnel_index "$name")
-    local port="${TUNNEL_PORTS[$idx]}"
-    local conn="mysql -h 127.0.0.1 -P ${port}"
+    local conn
+    conn="$(sql_conn_string "$idx")"
     echo "$conn" | { pbcopy 2>/dev/null || xclip -selection clipboard 2>/dev/null || wl-copy 2>/dev/null; } || echo "$conn"
 }
 

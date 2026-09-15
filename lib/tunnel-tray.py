@@ -269,7 +269,11 @@ class TunnelTray:
         self.refresh()
 
     def _copy_sql(self, _item, t):
-        self._copy(f"mysql -h 127.0.0.1 -P {t['port']}")
+        port = t["port"]
+        if t.get("engine", "mysql") == "postgres":
+            self._copy(f"psql -h 127.0.0.1 -p {port}")
+        else:
+            self._copy(f"mysql -h 127.0.0.1 -P {port}")
 
     def _copy_ssh(self, _item, t):
         forward = t.get("forward", "")

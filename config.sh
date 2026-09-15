@@ -56,6 +56,7 @@ TUNNEL_LABELS=()
 TUNNEL_INSTANCES=()
 TUNNEL_PORTS=()
 TUNNEL_IAM=()
+TUNNEL_ENGINES=()
 
 for (( i=0; i<tunnel_count; i++ )); do
     name=$(jq -r ".tunnels[$i].name // empty" "$CONFIG_FILE")
@@ -63,6 +64,7 @@ for (( i=0; i<tunnel_count; i++ )); do
     instance=$(jq -r ".tunnels[$i].instance // empty" "$CONFIG_FILE")
     port=$(jq -r ".tunnels[$i].port // empty" "$CONFIG_FILE")
     iam=$(jq -r ".tunnels[$i].auto_iam_authn // false" "$CONFIG_FILE")
+    engine=$(jq -r ".tunnels[$i].engine // \"mysql\"" "$CONFIG_FILE")
 
     # Validate required fields
     if [[ -z "$name" ]]; then
@@ -75,6 +77,10 @@ for (( i=0; i<tunnel_count; i++ )); do
     fi
     if [[ -z "$port" ]]; then
         echo "ERROR: Tunnel '${name}' is missing 'port'" >&2
+        exit 1
+    fi
+    if [[ "$engine" != "mysql" && "$engine" != "postgres" ]]; then
+        echo "ERROR: Tunnel '${name}' has invalid 'engine' '${engine}' (expected 'mysql' or 'postgres')" >&2
         exit 1
     fi
 
@@ -104,7 +110,20 @@ for (( i=0; i<tunnel_count; i++ )); do
     TUNNEL_INSTANCES+=("$instance")
     TUNNEL_PORTS+=("$port")
     TUNNEL_IAM+=("$iam")
+    TUNNEL_ENGINES+=("$engine")
 done
+
+# Build a client connection string for a SQL tunnel index. MySQL and Postgres
+# differ in the port flag casing (-P vs -p).
+sql_conn_string() {
+    local idx="$1"
+    local host="127.0.0.1"
+    local port="${TUNNEL_PORTS[$idx]}"
+    case "${TUNNEL_ENGINES[$idx]:-mysql}" in
+        postgres) echo "psql -h ${host} -p ${port}" ;;
+        *)        echo "mysql -h ${host} -P ${port}" ;;
+    esac
+}
 
 # --- SSH Tunnels ---
 
