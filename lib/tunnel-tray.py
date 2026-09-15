@@ -26,6 +26,7 @@ CONFIG_FILE = REPO_ROOT / "tunnels.json"
 SQL_CTL = REPO_ROOT / "lib" / "proxy-ctl.sh"
 SSH_CTL = REPO_ROOT / "lib" / "ssh-ctl.sh"
 BULK_CTL = REPO_ROOT / "lib" / "bulk-ctl.sh"
+AUTH_CTL = REPO_ROOT / "lib" / "auth-ctl.sh"
 
 POLL_SECONDS = 5
 
@@ -64,13 +65,47 @@ def parse_status(script: Path):
         if ":" not in line:
             continue
         name, state = line.split(":", 1)
-        states[name.strip()] = state.strip() == "running"
+        states[name.strip()] = state.strip() or "stopped"
     return states
 
 
 def run_ctl(script: Path, *args):
     subprocess.Popen(
         [str(script), *args],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
+TERMINALS = (
+    ("xdg-terminal-exec", lambda a: ["xdg-terminal-exec", *a]),
+    ("gnome-terminal", lambda a: ["gnome-terminal", "--", *a]),
+    ("kgx", lambda a: ["kgx", "--", *a]),
+    ("konsole", lambda a: ["konsole", "-e", *a]),
+    ("kitty", lambda a: ["kitty", *a]),
+    ("alacritty", lambda a: ["alacritty", "-e", *a]),
+    ("xterm", lambda a: ["xterm", "-e", *a]),
+)
+
+
+def run_in_terminal(argv):
+    """Run an interactive command in a terminal emulator.
+
+    Reauthing gcloud needs a TTY so the user can complete the browser flow.
+    Falls back to a detached run if no known terminal is installed.
+    """
+    for binary, build in TERMINALS:
+        if shutil.which(binary):
+            subprocess.Popen(
+                build(argv),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return
+    subprocess.Popen(
+        argv,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
@@ -116,7 +151,8 @@ class TunnelTray:
         for child in self.menu.get_children():
             self.menu.remove(child)
 
-        running = sum(sql_state.values()) + sum(ssh_state.values())
+        running = sum(v == "running" for v in sql_state.values())
+        running += sum(v == "running" for v in ssh_state.values())
         total = len(self.sql) + len(self.ssh)
         if total == 0:
             self.indicator.set_icon_full(ICON_NONE, "no tunnels configured")
@@ -161,6 +197,7 @@ class TunnelTray:
         self.menu.append(copy_root)
 
         self.menu.append(Gtk.SeparatorMenuItem())
+        self._action("Reauth gcloud (ADC)", self._reauth)
         self._action("Edit config", self._edit_config)
         self._action("Reload config", self._reload_now)
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -176,7 +213,7 @@ class TunnelTray:
     def _tunnel_item(self, t, state_map, script: Path, kind: str):
         name = t["name"]
         label = t.get("label", name)
-        running = state_map.get(name, False)
+        state = state_map.get(name, "stopped")
         if kind == "sql":
             detail = f"localhost:{t['port']} → {t['instance']}"
         else:
@@ -188,18 +225,31 @@ class TunnelTray:
                         local_port = tok
                         break
             detail = f"localhost:{local_port} → {t.get('host', '')}"
-        prefix = "● " if running else "○ "
+
+        if state == "running":
+            prefix, action = "● ", ("stop", name)
+        elif state == "needs-auth":
+            prefix, action = "⚠ ", ("login-restart", None)
+        else:
+            prefix, action = "○ ", ("start", name)
+
         item = Gtk.MenuItem(label=f"{prefix}{label} — {detail}")
-        item.connect(
-            "activate",
-            lambda *_: run_ctl(script, "stop" if running else "start", name),
-        )
+        if action[0] == "login-restart":
+            item.connect("activate", self._reauth)
+        else:
+            item.connect(
+                "activate",
+                lambda *_: run_ctl(script, action[0], action[1]),
+            )
         self.menu.append(item)
 
     def _action(self, label: str, callback):
         item = Gtk.MenuItem(label=label)
         item.connect("activate", callback)
         self.menu.append(item)
+
+    def _reauth(self, *_):
+        run_in_terminal([str(AUTH_CTL), "login-restart"])
 
     def _edit_config(self, *_):
         if shutil.which("xdg-open"):
