@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+# <xbar.title>Tunnel Toggle</xbar.title>
+# <xbar.desc>Start/stop Cloud SQL Proxy and SSH tunnels from the menu bar.</xbar.desc>
+# Hide SwiftBar's auto-appended items: they don't share our icon column, so
+# they misalign the menu. Option+click still reveals them when needed.
+# <swiftbar.hideLastUpdated>true</swiftbar.hideLastUpdated>
+# <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
+# <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
+# <swiftbar.hideAbout>true</swiftbar.hideAbout>
+# <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
+
 # SwiftBar plugin: Tunnel Toggle
 # Filename: tunnel-toggle.5s.sh (refreshes every 5 seconds)
 
