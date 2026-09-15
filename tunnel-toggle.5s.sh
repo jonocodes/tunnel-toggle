@@ -92,7 +92,7 @@ echo "---"
 
 # SQL tunnel sections
 if [[ $sql_total -gt 0 ]]; then
-    echo "SQL Tunnels | sfimage=cylinder.split"
+    echo "SQL Tunnels | sfimage=server.rack refresh=true"
     for i in "${!TUNNEL_NAMES[@]}"; do
         name="${TUNNEL_NAMES[$i]}"
         label="${TUNNEL_LABELS[$i]}"
@@ -106,7 +106,7 @@ if [[ $sql_total -gt 0 ]]; then
             echo "----${instance} | color=#888888 size=10"
             echo "----Stop ${label} | bash=${SQL_HELPER} param1=stop param2=${name} terminal=false refresh=true color=#FF3B30"
         elif [[ "$state" == "needs-auth" ]]; then
-            echo "--${label}: Needs gcloud auth | color=#FF9500 sfimage=key.fill"
+            echo "--${label}: Needs gcloud auth | color=#FF9500 sfimage=exclamationmark.circle"
             echo "----localhost:${port} | color=#888888 size=12"
             echo "----${instance} | color=#888888 size=10"
             echo "----Reauth gcloud & restart | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true color=#FF9500"
@@ -121,7 +121,7 @@ fi
 # SSH tunnel sections
 if [[ $ssh_total -gt 0 ]]; then
     echo "---"
-    echo "SSH Tunnels | sfimage=lock.shield"
+    echo "SSH Tunnels | sfimage=network.badge.shield.half.filled refresh=true"
     for i in "${!SSH_NAMES[@]}"; do
         name="${SSH_NAMES[$i]}"
         label="${SSH_LABELS[$i]}"
@@ -160,7 +160,7 @@ fi
 echo "---"
 
 # Copy connection strings
-echo "Copy Connection String | sfimage=doc.on.doc"
+echo "Copy Connection String | sfimage=square.on.square refresh=true"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -175,7 +175,7 @@ done
 echo "---"
 
 # View logs
-echo "View Logs | sfimage=doc.text.magnifyingglass"
+echo "View Logs | sfimage=text.magnifyingglass refresh=true"
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     label="${TUNNEL_LABELS[$i]}"
@@ -190,12 +190,12 @@ for i in "${!SSH_NAMES[@]}"; do
 done
 
 echo "---"
-echo "Reauth gcloud (ADC) | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true sfimage=key"
-echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=pencil"
-echo "Refresh | refresh=true sfimage=arrow.clockwise"
+echo "Reauth gcloud (ADC) | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true sfimage=exclamationmark.circle"
+echo "Edit Config | bash=/usr/bin/open param1=-e param2=${CONFIG_FILE} terminal=false sfimage=square.and.pencil"
+echo "Refresh | refresh=true sfimage=arrow.clockwise.circle"
 
 echo "---"
-echo "About | sfimage=info.circle"
+echo "About | sfimage=info.circle refresh=true"
 echo "--Tunnel Toggle v2.0 | color=#888888"
 echo "--SQL Proxies: ${sql_total} configured | color=#888888 size=12"
 echo "--SSH Tunnels: ${ssh_total} configured | color=#888888 size=12"
