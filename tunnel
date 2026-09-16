@@ -46,6 +46,9 @@ print_status() {
             needs-auth)
                 printf "%-20s %-8s ${YELLOW}%-10s${RESET} %s\n" "$name" "sql" "needs-auth" "run 'tunnel auth' (ADC expired)"
                 ;;
+            port-conflict)
+                printf "%-20s %-8s ${YELLOW}%-10s${RESET} %s\n" "$name" "sql" "port-conflict" "localhost:${port} held by another process"
+                ;;
             *)
                 printf "%-20s %-8s ${RED}%-10s${RESET} %s\n" "$name" "sql" "stopped" "localhost:${port} → ${instance}"
                 ;;
@@ -73,15 +76,15 @@ run_target() {
     local target="${2:-all}"
 
     if [[ "$target" == "all" ]]; then
-        "$SQL_CTL" "$action" all
-        "$SSH_CTL" "$action" all
+        "$SQL_CTL" "$action" all || true
+        "$SSH_CTL" "$action" all || true
         return
     fi
 
     # Check SQL tunnels
     for name in "${TUNNEL_NAMES[@]}"; do
         if [[ "$name" == "$target" ]]; then
-            "$SQL_CTL" "$action" "$target"
+            "$SQL_CTL" "$action" "$target" || true
             return
         fi
     done
@@ -89,7 +92,7 @@ run_target() {
     # Check SSH tunnels
     for name in "${SSH_NAMES[@]}"; do
         if [[ "$name" == "$target" ]]; then
-            "$SSH_CTL" "$action" "$target"
+            "$SSH_CTL" "$action" "$target" || true
             return
         fi
     done
