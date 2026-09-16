@@ -18,6 +18,10 @@ needs_auth_tunnels() {
     for name in "${TUNNEL_NAMES[@]}"; do
         [[ "$(sql_status_of "$name")" == "needs-auth" ]] && echo "$name"
     done
+    # Always succeed: callers capture this in a command substitution under
+    # `set -e`, where a nonzero return (e.g. the last tunnel is fine) would
+    # abort before the output is examined.
+    return 0
 }
 
 adc_login() {

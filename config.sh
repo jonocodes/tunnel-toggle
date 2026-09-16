@@ -192,7 +192,7 @@ log_file() { sql_log_file "$1"; }
 # Strings cloud-sql-proxy emits when ADC is missing, expired, or revoked
 # (an expired refresh token requires an interactive `gcloud auth
 # application-default login` — a plain proxy restart can't fix it).
-AUTH_ERROR_PATTERN='could not find default credentials|invalid_grant|invalid_rapt|reauthentication is required|token has been expired or revoked|credentials have been revoked|(failed|unable) to (get|retrieve|fetch|load|find) (a )?(credential|credentials|token)|oauth2: cannot fetch token|no valid credentials'
+AUTH_ERROR_PATTERN='could not find default credentials|(application )?default credentials (are not available|were not found|could not be found)|invalid_grant|invalid_rapt|reauthentication is required|token has been expired or revoked|credentials have been revoked|problem refreshing your current auth tokens|(failed|unable) to (get|retrieve|fetch|load|find) (a )?(credential|credentials|token)|oauth2: cannot fetch token|no valid credentials'
 
 GCLOUD_BINARY="${GCLOUD_BINARY:-$(command -v gcloud 2>/dev/null || echo gcloud)}"
 
@@ -204,15 +204,103 @@ sql_log_has_auth_error() {
     tail -n 40 "$lf" 2>/dev/null | grep -qiE "$AUTH_ERROR_PATTERN"
 }
 
-# State of a SQL tunnel by PID file alone: running | needs-auth | stopped
+# State of a SQL tunnel: running | needs-auth | port-conflict | stopped
 sql_status_of() {
-    local name="$1" pf
+    local name="$1" pf pid port shadow
     pf="$(sql_pid_file "$name")"
-    if [[ -f "$pf" ]] && kill -0 "$(cat "$pf" 2>/dev/null)" 2>/dev/null; then
-        echo "running"
+    if [[ -f "$pf" ]] && pid="$(cat "$pf" 2>/dev/null)" \
+        && [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        # Running, but is another process intercepting localhost?
+        port="$(sql_port_of "$name" || true)"
+        if [[ -n "$port" ]] && shadow="$(port_shadow_pids "$port" "$pid")" \
+            && [[ -n "$shadow" ]]; then
+            echo "port-conflict"
+        else
+            echo "running"
+        fi
     elif sql_log_has_auth_error "$name"; then
         echo "needs-auth"
+    elif sql_log_has_port_conflict "$name"; then
+        echo "port-conflict"
     else
         echo "stopped"
     fi
+}
+
+# Pre-flight ADC check. cloud-sql-proxy stays alive and keeps retrying when
+# credentials are missing or expired, so a launched process would look
+# "running" while never connecting. Callers check this before starting.
+# Echoes: ok | needs-auth | unknown (couldn't determine — don't block on it).
+# Cached per process so a bulk start only pays for one gcloud call.
+adc_state() {
+    if [[ -n "${_ADC_STATE_CACHE:-}" ]]; then
+        echo "$_ADC_STATE_CACHE"
+        return 0
+    fi
+
+    if ! command -v "$GCLOUD_BINARY" &>/dev/null; then
+        _ADC_STATE_CACHE="unknown"
+    else
+        local err
+        if err="$("$GCLOUD_BINARY" auth application-default print-access-token 2>&1 >/dev/null)"; then
+            _ADC_STATE_CACHE="ok"
+        elif grep -qiE "$AUTH_ERROR_PATTERN" <<<"$err"; then
+            _ADC_STATE_CACHE="needs-auth"
+        else
+            # A non-auth failure (e.g. a network blip) — let the proxy try.
+            _ADC_STATE_CACHE="unknown"
+        fi
+    fi
+
+    echo "$_ADC_STATE_CACHE"
+}
+
+# --- Loopback port conflicts ---
+
+# The proxy binds 0.0.0.0 so containers can reach it, but that means another
+# process can hold the *specific* 127.0.0.1 address on the same port: our bind
+# still succeeds, yet localhost clients are routed to the other process — a
+# tunnel that reports "running" but that nothing local can use. This marker
+# goes in the tunnel log when a start is refused for that reason.
+PORT_CONFLICT_PATTERN='port conflict: 127\.0\.0\.1'
+
+# PIDs holding the specific 127.0.0.1:<port> address, excluding our own proxy.
+# Echoes the blocking PIDs (empty when loopback is free). Uses lsof, falling
+# back to ss; reports nothing if neither is available.
+port_shadow_pids() {
+    local port="$1" our_pid="${2:-}"
+    local pids="" p out=""
+    if command -v lsof &>/dev/null; then
+        pids="$(lsof -nP -tiTCP@"127.0.0.1":"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    elif command -v ss &>/dev/null; then
+        pids="$(ss -ltnpH "sport = :${port}" 2>/dev/null \
+            | awk '$4 ~ /^127\.0\.0\.1:/ {print}' \
+            | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)"
+    fi
+    for p in $pids; do
+        [[ -n "$our_pid" && "$p" == "$our_pid" ]] && continue
+        out="${out}${out:+ }${p}"
+    done
+    [[ -n "$out" ]] && echo "$out"
+    return 0
+}
+
+# Port configured for a SQL tunnel name (returns non-zero if unknown).
+sql_port_of() {
+    local name="$1" i
+    for i in "${!TUNNEL_NAMES[@]}"; do
+        if [[ "${TUNNEL_NAMES[$i]}" == "$name" ]]; then
+            echo "${TUNNEL_PORTS[$i]}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Did a SQL tunnel's most recent log record a loopback port conflict?
+sql_log_has_port_conflict() {
+    local lf
+    lf="$(sql_log_file "$1")"
+    [[ -f "$lf" ]] || return 1
+    tail -n 40 "$lf" 2>/dev/null | grep -qiE "$PORT_CONFLICT_PATTERN"
 }

@@ -171,19 +171,31 @@ The resulting SSH command is: `ssh -N ${opts} ${forward} ${host}`
 |----------------|----------|--------------------------------------------------------------|
 | `proxy_binary` | No       | Path to `cloud-sql-proxy` (auto-detected from `PATH` if omitted) |
 
-> **Note:** the SQL proxy is launched bound to `--address 0.0.0.0` so containers (e.g. an MCP server) can reach it via `host.docker.internal`. On shared or untrusted networks, remember the local port is reachable from your LAN while a tunnel is up.
+> **Note:** the SQL proxy is launched bound to `--address 0.0.0.0` so containers (e.g. an MCP server) can reach it via `host.docker.internal`. On shared or untrusted networks, remember the local port is reachable from your LAN while a tunnel is up. Because the bind is on `0.0.0.0`, Tunnel Toggle also guards against another process holding the specific loopback address — see [Port conflicts](#port-conflicts).
 
 ## gcloud reauth
 
-SQL tunnels authenticate with Application Default Credentials. When the ADC refresh token expires or is revoked, `cloud-sql-proxy` exits with an auth error and the tunnel can't be fixed by a normal restart — it needs an interactive `gcloud auth application-default login`.
+SQL tunnels authenticate with Application Default Credentials. When the ADC refresh token expires or is revoked, the tunnel can't be fixed by a normal restart — it needs an interactive `gcloud auth application-default login`.
 
-Tunnel Toggle detects this by scanning each stopped SQL tunnel's log for auth errors, and surfaces it three ways:
+Before starting a tunnel, Tunnel Toggle mints an ADC access token as a pre-flight check. If credentials are missing or expired it refuses to launch the proxy (which would otherwise keep running while unable to connect) and records the reason in the tunnel's log. It also falls back to scanning a stopped tunnel's log for auth errors, so failures that surface after a successful start are still caught. Either way the problem is surfaced three ways:
 
 - **macOS menu bar:** the tunnel shows as `Needs gcloud auth` (`!` in the title). Reauth from the tunnel's submenu (`Reauth gcloud & restart`) or the top-level **Reauth gcloud (ADC)** item. A terminal opens so you can complete the browser flow.
 - **Linux tray:** the tunnel shows with a `⚠` prefix; selecting it reauths and restarts. **Reauth gcloud (ADC)** is also in the menu.
 - **CLI:** `./tunnel status` reports `needs-auth`; run `./tunnel auth` to log in.
 
 After a successful login, any tunnel that was waiting on auth is restarted automatically.
+
+## Port conflicts
+
+The proxy binds `0.0.0.0`, which lets another process hold the *specific* `127.0.0.1:<port>` address on the same port. Both binds succeed, but localhost clients (DBeaver, `psql`, …) are routed to the more specific binding — so a tunnel can look `running` while every local connection actually reaches that other process. A common cause is a second proxy manager (e.g. a monorepo `just db-proxies` / pyterra setup) using the same ports.
+
+Tunnel Toggle checks for this both before starting and while running, and reports `port-conflict` instead of a healthy `running`:
+
+- **macOS menu bar:** `Port in use` (`X` in the title), with a **Retry start** item.
+- **Linux tray:** a `✖` prefix.
+- **CLI:** `./tunnel status` reports `port-conflict`.
+
+The tunnel log records the blocking PID. Stop that process, or give the tunnel a different port in `tunnels.json`.
 
 ## CLI
 
@@ -215,7 +227,7 @@ Lower-level helpers (used by the tray) are available too:
 ## Troubleshooting
 
 - **Tunnel won't start** — check logs at `~/.tunnel-toggle/sql/<name>.log` or `~/.tunnel-toggle/ssh/<name>.log`, or `./tunnel logs <name>`.
-- **Port already in use** — `ss -tlnp | grep <port>` (Linux) or `lsof -i :<port>` (macOS).
+- **Port already in use / `port-conflict`** — another process holds `127.0.0.1:<port>`. Find it with `lsof -nP -iTCP@127.0.0.1:<port> -sTCP:LISTEN` (macOS) or `ss -ltnp | grep <port>` (Linux); the tunnel log names the PID too. Stop it, or change the tunnel's port in `tunnels.json`.
 - **SQL auth errors / "needs-auth"** — expired ADC. Use **Reauth gcloud (ADC)** in either menu, or run `./tunnel auth` (falls back to `gcloud auth application-default login`).
 - **Tray icon missing (Linux)** — confirm your desktop has an SNI tray (see the note above); check `systemctl --user status tunnel-tray.service`.
 - **Menu is stale after a config change** — the tray reloads changes within 5s; if it doesn't, use **Reload config** in the menu or `systemctl --user restart tunnel-tray.service`.

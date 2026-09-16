@@ -23,14 +23,16 @@ AUTH_HELPER="${SCRIPT_DIR}/lib/auth-ctl.sh"
 declare -a SQL_STATUSES=()
 sql_running=0
 sql_needs_auth=0
+sql_conflict=0
 
 for i in "${!TUNNEL_NAMES[@]}"; do
     name="${TUNNEL_NAMES[$i]}"
     state="$(sql_status_of "$name")"
     SQL_STATUSES[$i]="$state"
     case "$state" in
-        running)    ((sql_running++)) ;;
-        needs-auth) ((sql_needs_auth++)) ;;
+        running)       ((sql_running++)) ;;
+        needs-auth)    ((sql_needs_auth++)) ;;
+        port-conflict) ((sql_conflict++)) ;;
     esac
 done
 
@@ -60,9 +62,10 @@ title_parts=()
 for i in "${!TUNNEL_NAMES[@]}"; do
     letter="${TUNNEL_LABELS[$i]:0:1}"
     case "${SQL_STATUSES[$i]}" in
-        running)    icon="+" ;;
-        needs-auth) icon="!" ;;
-        *)          icon="-" ;;
+        running)       icon="+" ;;
+        needs-auth)    icon="!" ;;
+        port-conflict) icon="X" ;;
+        *)             icon="-" ;;
     esac
     title_parts+=("${letter}:${icon}")
 done
@@ -75,7 +78,7 @@ done
 
 title=$(IFS=" "; echo "${title_parts[*]}")
 
-if [[ $sql_needs_auth -gt 0 ]]; then
+if [[ $sql_needs_auth -gt 0 || $sql_conflict -gt 0 ]]; then
     color="#FF9500"
 elif [[ $running_count -eq 0 ]]; then
     color="#888888"
@@ -110,6 +113,10 @@ if [[ $sql_total -gt 0 ]]; then
             echo "----localhost:${port} | color=#888888 size=12"
             echo "----${instance} | color=#888888 size=10"
             echo "----Reauth gcloud & restart | bash=${AUTH_HELPER} param1=login-restart terminal=true refresh=true color=#FF9500"
+        elif [[ "$state" == "port-conflict" ]]; then
+            echo "--${label}: Port in use | color=#FF9500 sfimage=exclamationmark.triangle"
+            echo "----localhost:${port} is held by another process | color=#888888 size=11"
+            echo "----Retry start | bash=${SQL_HELPER} param1=start param2=${name} terminal=false refresh=true color=#FF9500"
         else
             echo "--${label}: Disconnected | color=#FF3B30 sfimage=xmark.circle"
             echo "----localhost:${port} | color=#888888 size=12"

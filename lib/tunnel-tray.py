@@ -230,6 +230,8 @@ class TunnelTray:
             prefix, action = "● ", ("stop", name)
         elif state == "needs-auth":
             prefix, action = "⚠ ", ("login-restart", None)
+        elif state == "port-conflict":
+            prefix, action = "✖ ", ("start", name)
         else:
             prefix, action = "○ ", ("start", name)
 

@@ -79,11 +79,33 @@ start_tunnel() {
     idx=$(tunnel_index "$name")
     local instance="${TUNNEL_INSTANCES[$idx]}"
     local port="${TUNNEL_PORTS[$idx]}"
-    local pf lf
+    local pf lf shadow
     pf="$(pid_file "$name")"
     lf="$(log_file "$name")"
 
     mkdir -p "${STATE_DIR}/sql"
+
+    # Refuse to start when another process already holds the specific
+    # 127.0.0.1:port address. Our wildcard (0.0.0.0) bind would succeed, but
+    # localhost clients would be routed to that other process, leaving a
+    # "running" tunnel that nothing local can actually use.
+    if shadow="$(port_shadow_pids "$port")" && [[ -n "$shadow" ]]; then
+        echo "ERROR: port conflict: 127.0.0.1:${port} is already in use by PID ${shadow}. Stop that process (e.g. a monorepo 'just db-proxies' tunnel) or change this tunnel's port." > "$lf"
+        rm -f "$pf"
+        notify-send "Tunnel Toggle" "${name} cannot start: localhost:${port} is already in use by another process." 2>/dev/null || true
+        return 1
+    fi
+
+    # Refuse to start when ADC is unusable. The proxy keeps running (and
+    # retrying) through auth failures, so launching anyway would report a
+    # healthy "running" tunnel that can't connect. Leaving no PID plus an
+    # auth-error log makes sql_status_of report "needs-auth" everywhere.
+    if [[ "$(adc_state)" == "needs-auth" ]]; then
+        echo "ERROR: gcloud ADC is missing, expired, or revoked - reauthentication is required. Run 'tunnel auth'." > "$lf"
+        rm -f "$pf"
+        notify-send "Tunnel Toggle" "${name} needs gcloud reauth. Run 'tunnel auth'." 2>/dev/null || true
+        return 1
+    fi
 
     # Enable IAM database authentication when the tunnel opts in
     local iam_flag=""
@@ -145,13 +167,17 @@ copy_connection() {
 run_on_targets() {
     local action="$1"
     local target="$2"
+    local rc=0
     if [[ "$target" == "all" ]]; then
+        # Attempt every tunnel even if one fails, so a single bad tunnel
+        # (e.g. one that needs gcloud reauth) doesn't mask the rest.
         for name in "${TUNNEL_NAMES[@]}"; do
-            "$action" "$name"
+            "$action" "$name" || rc=1
         done
     else
-        "$action" "$target"
+        "$action" "$target" || rc=1
     fi
+    return $rc
 }
 
 case "$ACTION" in
@@ -161,11 +187,10 @@ case "$ACTION" in
     copy)   copy_connection "$TARGET" ;;
     status)
         for name in "${TUNNEL_NAMES[@]}"; do
-            if is_running "$name"; then
-                echo "${name}:running"
-            else
-                echo "${name}:$(sql_status_of "$name")"
-            fi
+            # Resolve first so a missing PID file is healed before reporting;
+            # sql_status_of then distinguishes running from port-conflict.
+            proxy_resolve_pid "$name" >/dev/null 2>&1 || true
+            echo "${name}:$(sql_status_of "$name")"
         done
         ;;
     *)
