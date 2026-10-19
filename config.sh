@@ -204,10 +204,25 @@ sql_log_has_auth_error() {
     tail -n 40 "$lf" 2>/dev/null | grep -qiE "$AUTH_ERROR_PATTERN"
 }
 
+# ADC file the proxy reads at startup.
+ADC_FILE="${GOOGLE_APPLICATION_CREDENTIALS:-${CLOUDSDK_CONFIG:-${HOME}/.config/gcloud}/application_default_credentials.json}"
+
 # State of a SQL tunnel: running | needs-auth | port-conflict | stopped
 sql_status_of() {
     local name="$1" pf pid port shadow
     pf="$(sql_pid_file "$name")"
+    # The proxy reads ADC only at startup. If credentials changed since it
+    # started (e.g. a `gcloud auth application-default login` run outside this
+    # tool), restart it so it picks them up instead of holding a dead token.
+    if [[ -f "$pf" && "$ADC_FILE" -nt "$pf" ]] && pid="$(cat "$pf" 2>/dev/null)" \
+        && [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null \
+        && mkdir "${pf}.restarting" 2>/dev/null; then
+        # mkdir is the lock: concurrent pollers (menu + CLI) restart only once.
+        rm -f "$ADC_CACHE_FILE"
+        "${CONFIG_DIR}/lib/proxy-ctl.sh" stop "$name" >/dev/null 2>&1 || true
+        "${CONFIG_DIR}/lib/proxy-ctl.sh" start "$name" >/dev/null 2>&1 || true
+        rmdir "${pf}.restarting"
+    fi
     if [[ -f "$pf" ]] && pid="$(cat "$pf" 2>/dev/null)" \
         && [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
         # Running, but is another process intercepting localhost?
@@ -215,6 +230,10 @@ sql_status_of() {
         if [[ -n "$port" ]] && shadow="$(port_shadow_pids "$port" "$pid")" \
             && [[ -n "$shadow" ]]; then
             echo "port-conflict"
+        # A long-running proxy logs nothing when ADC expires under it, so ask
+        # gcloud directly (cached: status is polled every few seconds).
+        elif [[ "$(adc_state_cached)" == "needs-auth" ]]; then
+            echo "needs-auth"
         else
             echo "running"
         fi
@@ -253,6 +272,23 @@ adc_state() {
     fi
 
     echo "$_ADC_STATE_CACHE"
+}
+
+# adc_state, cached on disk for ADC_CACHE_MINUTES so frequent status polls
+# don't each spawn gcloud. auth-ctl.sh clears it after a login.
+ADC_CACHE_FILE="${STATE_DIR}/adc-state"
+ADC_CACHE_MINUTES="${ADC_CACHE_MINUTES:-5}"
+
+adc_state_cached() {
+    if [[ -n "$(find "$ADC_CACHE_FILE" -mmin -"$ADC_CACHE_MINUTES" 2>/dev/null)" ]]; then
+        cat "$ADC_CACHE_FILE"
+        return 0
+    fi
+    local state
+    state="$(adc_state)"
+    mkdir -p "$STATE_DIR"
+    echo "$state" > "$ADC_CACHE_FILE"
+    echo "$state"
 }
 
 # --- Loopback port conflicts ---

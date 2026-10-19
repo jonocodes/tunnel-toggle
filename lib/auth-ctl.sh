@@ -30,22 +30,27 @@ adc_login() {
         return 1
     fi
     "$GCLOUD_BINARY" auth application-default login
+    rm -f "$ADC_CACHE_FILE"
 }
 
-restart_needing_auth() {
+# Restart the given tunnel names (one per line) after a reauth.
+restart_tunnels() {
     local name
     local restart=()
     while IFS= read -r name; do
         [[ -n "$name" ]] && restart+=("$name")
-    done < <(needs_auth_tunnels)
+    done <<<"$1"
 
     if [[ ${#restart[@]} -eq 0 ]]; then
         echo "No tunnels are waiting on a gcloud reauth."
         return 0
     fi
 
+    # Stop first: a proxy that outlived its credentials is still running with
+    # the old token in memory, so a plain start would be a no-op.
     echo "Restarting tunnel(s) that needed auth: ${restart[*]}"
     for name in "${restart[@]}"; do
+        "${SCRIPT_DIR}/lib/proxy-ctl.sh" stop "$name"
         "${SCRIPT_DIR}/lib/proxy-ctl.sh" start "$name"
     done
 }
@@ -55,7 +60,10 @@ case "$ACTION" in
         adc_login
         ;;
     login-restart)
-        adc_login && restart_needing_auth
+        # Capture before login: afterwards ADC is fine again, so running
+        # proxies still holding the expired token would look healthy.
+        names="$(needs_auth_tunnels)"
+        adc_login && restart_tunnels "$names"
         ;;
     needs-auth)
         names="$(needs_auth_tunnels)"
