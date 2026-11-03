@@ -29,7 +29,9 @@ adc_login() {
         echo "ERROR: gcloud not found on PATH." >&2
         return 1
     fi
-    "$GCLOUD_BINARY" auth application-default login
+    # --update-adc renews the gcloud CLI login and ADC in one browser flow, so
+    # both expire together instead of one lapsing while the other still works.
+    "$GCLOUD_BINARY" auth login --update-adc
     rm -f "$ADC_CACHE_FILE"
 }
 

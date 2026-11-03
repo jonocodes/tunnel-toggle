@@ -35,7 +35,7 @@ fi
 if gcloud auth application-default print-access-token &>/dev/null 2>&1; then
     echo "[OK] gcloud Application Default Credentials configured"
 else
-    echo "[WARN] gcloud ADC not configured. Run: gcloud auth application-default login"
+    echo "[WARN] gcloud ADC not configured. Run: gcloud auth login --update-adc"
 fi
 
 # 5. Check for / install SwiftBar
