@@ -50,7 +50,7 @@ sudo dnf install jq python3-gobject gtk3 libayatana-appindicator-gtk3
 You also need [`cloud-sql-proxy`](https://cloud.google.com/sql/docs/mysql/sql-proxy) (v2) on your `PATH` for SQL tunnels, and the [gcloud CLI](https://cloud.google.com/sdk/docs/install) authenticated with Application Default Credentials:
 
 ```bash
-gcloud auth application-default login
+gcloud auth login --update-adc
 ```
 
 > **Tray requirement:** the indicator needs an SNI-capable system tray. KDE Plasma shows it natively; GNOME needs the *AppIndicator and KStatusNotifierItem* extension; wlroots compositors (Sway, Hyprland) need a bar with an SNI tray module such as Waybar. No tray? Use the `tunnel` CLI instead — the daemon is optional.
@@ -95,7 +95,7 @@ brew install --cask swiftbar
 Authenticate ADC for SQL tunnels:
 
 ```bash
-gcloud auth application-default login
+gcloud auth login --update-adc
 ```
 
 Then:
@@ -175,7 +175,7 @@ The resulting SSH command is: `ssh -N ${opts} ${forward} ${host}`
 
 ## gcloud reauth
 
-SQL tunnels authenticate with Application Default Credentials. When the ADC refresh token expires or is revoked, the tunnel can't be fixed by a normal restart — it needs an interactive `gcloud auth application-default login`.
+SQL tunnels authenticate with Application Default Credentials. When the ADC refresh token expires or is revoked, the tunnel can't be fixed by a normal restart — it needs an interactive login. Reauth runs `gcloud auth login --update-adc`, which renews ADC and the gcloud CLI login together so one doesn't expire while the other still works.
 
 Before starting a tunnel, Tunnel Toggle mints an ADC access token as a pre-flight check. If credentials are missing or expired it refuses to launch the proxy (which would otherwise keep running while unable to connect) and records the reason in the tunnel's log. It also falls back to scanning a stopped tunnel's log for auth errors, so failures that surface after a successful start are still caught. A proxy that is already running logs nothing when its credentials expire, so running tunnels also re-run the ADC check (cached for 5 minutes, override with `ADC_CACHE_MINUTES`). A proxy reads ADC only at startup and keeps the token in memory, so when the ADC file is newer than a running proxy (e.g. after a `gcloud auth application-default login` run anywhere), the next status poll restarts that tunnel automatically. Either way the problem is surfaced three ways:
 
@@ -228,7 +228,7 @@ Lower-level helpers (used by the tray) are available too:
 
 - **Tunnel won't start** — check logs at `~/.tunnel-toggle/sql/<name>.log` or `~/.tunnel-toggle/ssh/<name>.log`, or `./tunnel logs <name>`.
 - **Port already in use / `port-conflict`** — another process holds `127.0.0.1:<port>`. Find it with `lsof -nP -iTCP@127.0.0.1:<port> -sTCP:LISTEN` (macOS) or `ss -ltnp | grep <port>` (Linux); the tunnel log names the PID too. Stop it, or change the tunnel's port in `tunnels.json`.
-- **SQL auth errors / "needs-auth"** — expired ADC. Use **Reauth gcloud (ADC)** in either menu, or run `./tunnel auth` (falls back to `gcloud auth application-default login`).
+- **SQL auth errors / "needs-auth"** — expired ADC. Use **Reauth gcloud (ADC)** in either menu, or run `./tunnel auth` (falls back to `gcloud auth login --update-adc`).
 - **Tray icon missing (Linux)** — confirm your desktop has an SNI tray (see the note above); check `systemctl --user status tunnel-tray.service`.
 - **Menu is stale after a config change** — the tray reloads changes within 5s; if it doesn't, use **Reload config** in the menu or `systemctl --user restart tunnel-tray.service`.
 - **Can't stop a tunnel after renaming it** — the helpers find a running process by command line and re-adopt it, so `./tunnel down <name>` works under the new name. If you renamed a tunnel and the old process is still bound to its port, run `./tunnel down <newname>` (or kill the PID shown by `lsof -i :<port>`).
